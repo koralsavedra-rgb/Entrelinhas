@@ -45,8 +45,8 @@
     .app { width: 100%; max-width: 760px; min-height: 100vh; min-height: 100dvh; margin: 0 auto; }
     .screen { display: none; min-height: 100vh; min-height: 100dvh; }
     .screen.active { display: flex; flex-direction: column; }
-    /* Mantém o fim de cada tela acessível acima da navegação fixa. */
-    main.app > .screen:not(#splash) { padding-bottom: calc(82px + var(--safe-bottom)); box-sizing: border-box; }
+    /* Reserva espaço para a navegação fixa sem alterar quais conteúdos aparecem nos filtros do Início. */
+    main.app > .screen:not(#splash) { padding-bottom: calc(82px + var(--safe-bottom)); }
     /* Splash: interpretação inicial, mantendo a identidade visual aprovada. */
     #splash {
       position: relative;
@@ -877,10 +877,8 @@
       let noticeTimer;
 
       function showHome() {
-        splash.classList.remove("active");
-        home.classList.add("active");
-        if (typeof renderHomeRecords === "function") renderHomeRecords();
-        window.scrollTo({ top: 0, behavior: "auto" });
+        // showScreen desativa TODAS as outras telas (biblioteca, personagens, laboratório, acervo...)
+        showScreen("home");
       }
 
       function showNotice(message) {
@@ -897,7 +895,6 @@
           const moduleName = control.getAttribute("data-module");
           if (moduleName === "Início") {
             showHome();
-            window.scrollTo({ top: 0, behavior: "smooth" });
             return;
           }
           if (moduleName === "Biblioteca") {
@@ -1064,23 +1061,7 @@
       function fillSelect(select, values, firstLabel) { select.innerHTML = ""; const first=document.createElement("option"); first.value=""; first.textContent=firstLabel; select.appendChild(first); values.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;select.appendChild(o);}); }
       fillSelect(categoryFilter,categories,"Todas as categorias"); fillSelect(typeFilter,types,"Todos os tipos");
       fillSelect(recordType,types,"Escolha um tipo"); fillSelect(recordCategory,categories,"Sem categoria");
-      function showScreen(name) {
-        document.querySelectorAll("main.app > .screen").forEach(el=>el.classList.toggle("active",el.id===name));
-        if(name!=="splash") document.body.classList.add("app-entered");
-        /* Cada tela tem sua própria cópia da barra: sincronize todas ao trocar de tela. */
-        const moduleName = (name === "home" || name === "homeView") ? "Início"
-          : (["library"].includes(name) ? "Biblioteca"
-          : (["characters"].includes(name) ? "Personagens"
-          : (["laboratory","labExperimentEditor","labExperimentView"].includes(name) ? "Laboratório"
-          : (["myAcervo"].includes(name) ? "Meu acervo" : null))));
-        document.querySelectorAll(".bottom-nav .nav-item").forEach(control => {
-          const active = moduleName !== null && control.getAttribute("data-module") === moduleName;
-          control.classList.toggle("active", active);
-          if(active) control.setAttribute("aria-current", "page"); else control.removeAttribute("aria-current");
-        });
-        if(name==="home") renderHomeRecords();
-        window.scrollTo({top:0,behavior:"auto"});
-      }
+      function showScreen(name) { document.querySelectorAll("main.app > .screen").forEach(el=>el.classList.toggle("active",el.id===name)); if(name!=="splash") document.body.classList.add("app-entered"); if(name==="home") renderHomeRecords(); window.scrollTo({top:0,behavior:"auto"}); }
       function openLibrary() { showScreen("library"); renderRecords(); }
       document.getElementById("libraryHome").addEventListener("click",()=>showScreen("home"));
       function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
