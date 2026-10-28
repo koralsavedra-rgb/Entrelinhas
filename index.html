@@ -119,6 +119,10 @@
     .search-box svg { width: 20px; height: 20px; color: #ffb6cf; flex: 0 0 auto; }
     .search-box input { width: 100%; min-width: 0; border: 0; outline: 0; color: var(--text); background: transparent; font-size: .94rem; }
     .search-box input::placeholder { color: #a4a4aa; }
+    .voice-search-button { display:inline-flex; align-items:center; justify-content:center; flex:0 0 38px; width:38px; height:38px; padding:0; border:1px solid rgba(255,182,207,.25); border-radius:12px; color:#ffb6cf; background:rgba(255,182,207,.07); cursor:pointer; }
+    .voice-search-button svg { width:19px; height:19px; color:currentColor; }
+    .voice-search-button[aria-pressed="true"] { color:#fff; background:#a83e68; border-color:#ffb6cf; }
+    .voice-search-button:focus-visible { outline:2px solid #ffb6cf; outline-offset:2px; }
     .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 14px; }
     .section-heading h2 { margin: 0; font-size: 1.08rem; font-weight: 620; letter-spacing: -.015em; }
     .section-heading p { margin: 0; color: #a4a4aa; font-size: .76rem; }
@@ -559,6 +563,7 @@
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg>
             <input id="globalSearch" type="search" placeholder="Uma palavra, expressão, ideia..." autocomplete="off" aria-describedby="searchHelp">
+            <button class="voice-search-button" id="globalVoiceSearch" type="button" aria-label="Pesquisar por voz" title="Pesquisar por voz" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg></button>
           </div>
           <div id="searchHelp" class="results-area" hidden></div>
         </div>
@@ -990,6 +995,24 @@
       search.addEventListener("input", renderGlobalSearch);
       searchHelp.addEventListener("click", e => { const button=e.target.closest(".global-search-result"); if(button) button.blur(); });
 
+      // Pesquisa por voz usa a API disponível no navegador; a pesquisa digitada continua igual.
+      const voiceSearchButton=document.getElementById("globalVoiceSearch");
+      const SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
+      let voiceRecognition=null;
+      if (SpeechRecognition) {
+        voiceRecognition=new SpeechRecognition();
+        voiceRecognition.lang="pt-BR";
+        voiceRecognition.interimResults=false;
+        voiceRecognition.continuous=false;
+        voiceRecognition.onstart=()=>{voiceSearchButton.setAttribute("aria-pressed","true");voiceSearchButton.setAttribute("aria-label","Parar pesquisa por voz");voiceSearchButton.title="Ouvindo… toque para parar";};
+        voiceRecognition.onresult=event=>{const transcript=Array.from(event.results||[]).map(result=>result[0]?.transcript||"").join(" ").trim();if(transcript){search.value=transcript;renderGlobalSearch();}};
+        voiceRecognition.onerror=event=>{const messages={"not-allowed":"Permita o uso do microfone no navegador para pesquisar por voz.","service-not-allowed":"O navegador não permitiu o reconhecimento de voz.","no-speech":"Não ouvi uma pesquisa. Tente falar novamente.","network":"O reconhecimento de voz precisa de conexão com a internet neste navegador."};showNotice(messages[event.error]||"Não foi possível reconhecer a voz. Você ainda pode pesquisar digitando.");};
+        voiceRecognition.onend=()=>{voiceSearchButton.setAttribute("aria-pressed","false");voiceSearchButton.setAttribute("aria-label","Pesquisar por voz");voiceSearchButton.title="Pesquisar por voz";};
+        voiceSearchButton.addEventListener("click",()=>{try{if(voiceSearchButton.getAttribute("aria-pressed")==="true")voiceRecognition.stop();else voiceRecognition.start();}catch(e){showNotice("Não foi possível iniciar o microfone agora. Tente novamente ou digite a pesquisa.");}});
+      } else {
+        voiceSearchButton.addEventListener("click",()=>showNotice("Este navegador não oferece pesquisa por voz. A pesquisa digitada continua disponível."));
+      }
+
       // Biblioteca Criativa: armazenamento local e registros editáveis.
       const categories = ["Palavras e expressões","Descrição e expressão","Escrita e estilo","Gramática e uso","Apresentação do texto","Gêneros e recursos narrativos","Materiais de referência"];
       const types = ["Palavra","Expressão","Recurso de escrita","Recurso narrativo","Orientação gramatical","Orientação de apresentação","Explicação ou conceito","Material de referência","Nota pessoal"];
@@ -1061,7 +1084,33 @@
       function fillSelect(select, values, firstLabel) { select.innerHTML = ""; const first=document.createElement("option"); first.value=""; first.textContent=firstLabel; select.appendChild(first); values.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;select.appendChild(o);}); }
       fillSelect(categoryFilter,categories,"Todas as categorias"); fillSelect(typeFilter,types,"Todos os tipos");
       fillSelect(recordType,types,"Escolha um tipo"); fillSelect(recordCategory,categories,"Sem categoria");
-      function showScreen(name) { document.querySelectorAll("main.app > .screen").forEach(el=>el.classList.toggle("active",el.id===name)); if(name!=="splash") document.body.classList.add("app-entered"); if(name==="home") renderHomeRecords(); window.scrollTo({top:0,behavior:"auto"}); }
+      // Histórico interno para que o Voltar do Android percorra as telas do app antes de sair.
+      let lastShownScreen = document.querySelector("main.app > .screen.active")?.id || "splash";
+      try { history.replaceState({ ...(history.state || {}), entrelinhasNavigation:true, entrelinhasScreen:lastShownScreen }, ""); } catch (e) {}
+      function activateScreen(name) {
+        document.querySelectorAll("main.app > .screen").forEach(el=>el.classList.toggle("active",el.id===name));
+        lastShownScreen=name;
+        if(name!=="splash") document.body.classList.add("app-entered");
+        if(name==="home") renderHomeRecords();
+        window.scrollTo({top:0,behavior:"auto"});
+      }
+      function showScreen(name) {
+        if (name !== lastShownScreen) {
+          try {
+            const state={ ...(history.state || {}), entrelinhasNavigation:true, entrelinhasScreen:name };
+            // A entrada inicial do splash é substituída por Início, não vira uma tela para voltar.
+            if (lastShownScreen === "splash" && name === "home") history.replaceState(state, "");
+            else history.pushState(state, "");
+          } catch (e) {}
+        }
+        activateScreen(name);
+      }
+      window.addEventListener("popstate", event => {
+        // Primeiro, o Voltar fecha painéis temporários; depois percorre as telas principais.
+        if (!settingsBackdrop.hidden) { settingsBackdrop.hidden=true; return; }
+        const target=event.state && event.state.entrelinhasNavigation && event.state.entrelinhasScreen;
+        if (target && document.getElementById(target)) activateScreen(target);
+      });
       function openLibrary() { showScreen("library"); renderRecords(); }
       document.getElementById("libraryHome").addEventListener("click",()=>showScreen("home"));
       function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
