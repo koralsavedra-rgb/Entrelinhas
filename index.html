@@ -478,12 +478,12 @@
     .home-chip[aria-pressed="true"]{color:#fff;border-color:rgba(255,182,207,.5);background:rgba(240,140,175,.16)}
     .home-record-meta .home-area{color:var(--pink-bright);font-weight:600}
     /* Etapa 7.6 — Início com três cards; cada um abre sua própria tela. */
-    .home-cards{display:grid;gap:12px;margin-top:6px}
-    .home-nav-card{display:flex;align-items:center;gap:14px;width:100%;min-height:84px;padding:16px 18px;text-align:left;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(120deg,rgba(38,30,34,.9),rgba(21,21,21,.98));cursor:pointer}
+    .home-cards{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:6px;min-width:0;width:100%;max-width:100%}
+    .home-nav-card{display:flex;align-items:center;gap:14px;width:100%;min-width:0;max-width:100%;box-sizing:border-box;min-height:84px;padding:16px 18px;text-align:left;border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(120deg,rgba(38,30,34,.9),rgba(21,21,21,.98));cursor:pointer}
     .home-nav-card:active{transform:scale(.99)}
     .home-nav-card .hnc-copy{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
-    .home-nav-card .hnc-title{font-size:1.08rem;font-weight:600;color:#fff}
-    .home-nav-card .hnc-hint{font-size:.84rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .home-nav-card .hnc-title{display:block;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1.08rem;font-weight:600;color:#fff}
+    .home-nav-card .hnc-hint{display:block;max-width:100%;min-width:0;font-size:.84rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .home-nav-card .hnc-arrow{font-size:1.5rem;color:var(--pink-bright)}
     .hv-list{display:grid;gap:12px}
     .hv-card{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:16px;cursor:pointer}
