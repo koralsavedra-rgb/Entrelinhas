@@ -995,22 +995,45 @@
       search.addEventListener("input", renderGlobalSearch);
       searchHelp.addEventListener("click", e => { const button=e.target.closest(".global-search-result"); if(button) button.blur(); });
 
-      // Pesquisa por voz usa a API disponível no navegador; a pesquisa digitada continua igual.
+      // Pesquisa por voz: tenta o reconhecimento do navegador e oferece o ditado do teclado como alternativa.
       const voiceSearchButton=document.getElementById("globalVoiceSearch");
       const SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
       let voiceRecognition=null;
+      function resetVoiceButton(){
+        voiceSearchButton.setAttribute("aria-pressed","false");
+        voiceSearchButton.setAttribute("aria-label","Pesquisar por voz");
+        voiceSearchButton.title="Pesquisar por voz";
+      }
+      function useKeyboardDictation(message){
+        resetVoiceButton();
+        showNotice(message+" O campo foi aberto: toque no microfone do teclado para ditar.");
+        search.focus();
+      }
       if (SpeechRecognition) {
-        voiceRecognition=new SpeechRecognition();
-        voiceRecognition.lang="pt-BR";
-        voiceRecognition.interimResults=false;
-        voiceRecognition.continuous=false;
-        voiceRecognition.onstart=()=>{voiceSearchButton.setAttribute("aria-pressed","true");voiceSearchButton.setAttribute("aria-label","Parar pesquisa por voz");voiceSearchButton.title="Ouvindo… toque para parar";};
-        voiceRecognition.onresult=event=>{const transcript=Array.from(event.results||[]).map(result=>result[0]?.transcript||"").join(" ").trim();if(transcript){search.value=transcript;renderGlobalSearch();}};
-        voiceRecognition.onerror=event=>{const messages={"not-allowed":"Permita o uso do microfone no navegador para pesquisar por voz.","service-not-allowed":"O navegador não permitiu o reconhecimento de voz.","no-speech":"Não ouvi uma pesquisa. Tente falar novamente.","network":"O reconhecimento de voz precisa de conexão com a internet neste navegador."};showNotice(messages[event.error]||"Não foi possível reconhecer a voz. Você ainda pode pesquisar digitando.");};
-        voiceRecognition.onend=()=>{voiceSearchButton.setAttribute("aria-pressed","false");voiceSearchButton.setAttribute("aria-label","Pesquisar por voz");voiceSearchButton.title="Pesquisar por voz";};
-        voiceSearchButton.addEventListener("click",()=>{try{if(voiceSearchButton.getAttribute("aria-pressed")==="true")voiceRecognition.stop();else voiceRecognition.start();}catch(e){showNotice("Não foi possível iniciar o microfone agora. Tente novamente ou digite a pesquisa.");}});
-      } else {
-        voiceSearchButton.addEventListener("click",()=>showNotice("Este navegador não oferece pesquisa por voz. A pesquisa digitada continua disponível."));
+        try {
+          voiceRecognition=new SpeechRecognition();
+          voiceRecognition.lang="pt-BR";
+          voiceRecognition.interimResults=false;
+          voiceRecognition.continuous=false;
+          voiceRecognition.onstart=()=>{voiceSearchButton.setAttribute("aria-pressed","true");voiceSearchButton.setAttribute("aria-label","Parar pesquisa por voz");voiceSearchButton.title="Ouvindo… toque para parar";};
+          voiceRecognition.onresult=event=>{
+            const transcript=Array.from(event.results||[]).map(result=>result[0]?.transcript||"").join(" ").trim();
+            if(transcript){search.value=transcript;renderGlobalSearch();search.focus();}
+            else useKeyboardDictation("Não consegui entender a fala.");
+          };
+          voiceRecognition.onerror=event=>{
+            const messages={"not-allowed":"O navegador bloqueou o reconhecimento de voz.","service-not-allowed":"O serviço de reconhecimento de voz não está disponível.","no-speech":"Não detectei fala.","network":"O reconhecimento direto precisa de conexão e de um serviço de voz disponível.","audio-capture":"Não consegui acessar o microfone.","language-not-supported":"O reconhecimento em português não está disponível neste navegador."};
+            useKeyboardDictation(messages[event.error]||"A pesquisa por voz direta não funcionou.");
+          };
+          voiceRecognition.onend=resetVoiceButton;
+          voiceSearchButton.addEventListener("click",()=>{
+            try { if(voiceSearchButton.getAttribute("aria-pressed")==="true") voiceRecognition.stop(); else voiceRecognition.start(); }
+            catch(e) { useKeyboardDictation("Não consegui iniciar o reconhecimento de voz."); }
+          });
+        } catch(e) { voiceRecognition=null; }
+      }
+      if (!voiceRecognition) {
+        voiceSearchButton.addEventListener("click",()=>useKeyboardDictation("O reconhecimento direto não está disponível neste navegador."));
       }
 
       // Biblioteca Criativa: armazenamento local e registros editáveis.
