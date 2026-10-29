@@ -1,3 +1,4 @@
+<!-- FASE 7 — revisão integrada: preserva a implementação aprovada da Fase 6; revisão estática de sintaxe, estrutura HTML e IDs concluída. Testes interativos finais dependem da validação no navegador/dispositivo. -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -719,7 +720,7 @@
       </nav>
     </section>
     <section id="labExperimentView" class="screen" aria-label="Visualização do experimento">
-      <header class="lab-work-header"><div class="lab-work-top"><button class="lab-button" type="button" id="labViewBack">← Laboratório</button><button class="lab-button" type="button" id="labViewEdit">Editar</button><button class="lab-button" type="button" id="labDuplicateExperiment">Duplicar</button><button class="lab-button" type="button" id="saveLabToAcervo">Guardar no acervo</button></div><h1 id="labViewTitle">Experimento</h1><p id="labViewMeta"></p></header>
+      <header class="lab-work-header"><div class="lab-work-top"><button class="lab-button" type="button" id="labViewBack">← Laboratório</button><button class="lab-button" type="button" id="labViewEdit">Editar</button><button class="lab-button" type="button" id="labDuplicateExperiment">Duplicar</button><button class="lab-button" type="button" id="saveLabToAcervo">Guardar no acervo</button><button class="lab-button" type="button" id="labChooseTransferDestination">Escolher destino</button></div><h1 id="labViewTitle">Experimento</h1><p id="labViewMeta"></p></header>
       <div class="lab-work-content" id="labViewContent"></div>
       <div class="lab-content"><div class="lab-work-actions"><button class="lab-button danger" type="button" id="labDeleteExperiment">Excluir experimento</button><button class="lab-button" type="button" id="labViewBackBottom">Voltar ao Laboratório</button></div></div>
     </section>
@@ -902,7 +903,19 @@
 
   <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
 
-  <script>
+      <div id="labTransferBackdrop" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="labTransferHeading">
+      <div class="modal-card" style="width:min(900px,96vw);max-height:90vh;overflow:auto">
+        <div class="screen-heading"><h2 id="labTransferHeading">Escolher destino do experimento</h2><button type="button" class="secondary-button" id="labTransferClose">Fechar</button></div>
+        <p class="empty-copy" id="labTransferIntro">O experimento original permanecerá salvo no Laboratório.</p>
+        <div class="lab-field"><label for="labTransferDestination">Destino</label><select id="labTransferDestination"><option value="characters">Personagens</option><option value="library">Biblioteca Criativa</option><option value="acervo">Meu acervo — material complementar completo</option></select></div>
+        <div class="lab-field"><label for="labTransferMode">Como deseja usar o experimento?</label><select id="labTransferMode"><option value="adapt">Adaptar aos campos do destino</option><option value="complete">Guardar completo como material complementar no Meu acervo</option></select><small>Quando escolhido como material complementar, todas as respostas e a definição do formulário serão preservadas numa cópia independente.</small></div>
+        <div id="labTransferTargetWrap" class="lab-field"><label for="labTransferTarget">Ficha de personagem</label><select id="labTransferTarget"><option value="new">Criar uma nova ficha</option></select><small>Ao escolher uma ficha existente, confira o mapeamento: somente os campos confirmados serão atualizados.</small></div>
+        <div id="labTransferMapping"></div>
+        <div class="lab-field"><label>Pré-visualização do conteúdo</label><div id="labTransferPreview" class="lab-source-preview" style="white-space:pre-wrap;max-height:240px;overflow:auto"></div></div>
+        <div class="lab-work-actions"><button type="button" class="lab-button" id="labTransferCancel">Cancelar</button><button type="button" class="lab-button" id="labTransferConfirm">Confirmar destino</button></div>
+      </div>
+    </div>
+<script>
     (() => {
       "use strict";
       const splash = document.getElementById("splash");
@@ -1935,7 +1948,47 @@
       document.getElementById("labGuidedNext").addEventListener("click",()=>{if(labGuidedStep===labGuidedSteps.length-1)labGuidedStep=0;else labGuidedStep++;renderLabGuidedStep();});
       document.getElementById("labSaveFromIdea").addEventListener("click",saveLabExperiment);document.getElementById("labGuidedSave").addEventListener("click",saveLabExperiment);document.getElementById("labGuidedCancel").addEventListener("click",closeLabEditor);labForm.addEventListener("submit",e=>{e.preventDefault();saveLabExperiment();});
       document.getElementById("labCancelEditor").addEventListener("click",closeLabEditor);document.getElementById("labCancelEditor2").addEventListener("click",closeLabEditor);document.getElementById("labEditorBack").addEventListener("click",closeLabEditor);
-      document.getElementById("saveLabToAcervo").addEventListener("click",()=>{if(labViewingId)acvBeginComposerForSource("lab",labViewingId);});document.getElementById("labViewBack").addEventListener("click",openLaboratory);document.getElementById("labViewBackBottom").addEventListener("click",openLaboratory);document.getElementById("labViewEdit").addEventListener("click",()=>{if(!labViewingId)return;const current=labExperiments.find(x=>x.id===labViewingId);if(current?.definition?.form)openLabDynamicForm(current.id);else openLabEditor(labViewingId);});document.getElementById("labDeleteExperiment").addEventListener("click",deleteLabExperiment);document.getElementById("labDuplicateExperiment").addEventListener("click",duplicateLabExperiment);
+
+      // Fase 6: destino flexível de experimentos, com prévia e confirmação explícita.
+      let labTransferExperimentId = null;
+      function labTransferValues(exp){
+        const vals=[];
+        if(exp.definition?.form && exp.responses && typeof exp.responses==="object"){
+          labDynamicFields(exp.definition.form).forEach(({field})=>{const v=exp.responses[field.id];if(v!==undefined&&v!==null&&v!==""&&!(Array.isArray(v)&&!v.length))vals.push({key:field.id,label:field.label||field.id,value:Array.isArray(v)?v.join(", "):typeof v==="boolean"?(v?"Sim":"Não"):String(v)});});
+        }
+        [["description","Descrição"],["goal","Objetivo"],["content","Desenvolvimento"],["observations","Observações"],["category","Categoria"]].forEach(([k,label])=>{if(exp[k]&&String(exp[k]).trim()&&!vals.some(x=>x.key===k))vals.push({key:k,label,value:String(exp[k])});});
+        return vals;
+      }
+      function labTransferFullText(exp){const vals=labTransferValues(exp);return ["Experimento: "+(exp.title||"Sem título"),exp.description?"Descrição: "+exp.description:"",exp.goal?"Objetivo: "+exp.goal:"",exp.content?"Desenvolvimento: "+exp.content:"",exp.observations?"Observações: "+exp.observations:"",exp.category?"Categoria: "+exp.category:"",vals.length?"Respostas do formulário:\n"+vals.map(x=>x.label+":\n"+x.value).join("\n\n"):"",exp.definition?.form?"\nDefinição do formulário preservada integralmente na cópia.":""].filter(Boolean).join("\n\n");}
+      function labTransferFieldOptions(selected){return '<option value="">Não transferir este campo</option>'+Object.entries(characterLabels).filter(([k])=>k!=="name").map(([k,label])=>'<option value="'+k+'" '+(selected===k?'selected':'')+'>'+escapeHtml(label)+'</option>').join("");}
+      function labTransferRenderMapping(){const exp=labExperiments.find(x=>x.id===labTransferExperimentId);if(!exp)return;const dest=document.getElementById("labTransferDestination").value,mode=document.getElementById("labTransferMode").value,wrap=document.getElementById("labTransferTargetWrap"),map=document.getElementById("labTransferMapping");wrap.hidden=dest!=="characters"||mode!=="adapt";map.innerHTML="";const values=labTransferValues(exp);if(mode==="complete"||dest==="acervo"){document.getElementById("labTransferPreview").textContent=labTransferFullText(exp);document.getElementById("labTransferConfirm").textContent="Guardar cópia completa no Meu acervo";return;}
+        if(dest==="characters"){
+          const target=document.getElementById("labTransferTarget"),prev=target.value;target.innerHTML='<option value="new">Criar uma nova ficha</option>'+characters.filter(c=>!c.archived).map(c=>'<option value="'+escapeHtml(c.id)+'">Atualizar ficha: '+escapeHtml(c.name)+'</option>').join("");if([...target.options].some(o=>o.value===prev))target.value=prev;
+          map.innerHTML='<h3>Associar respostas aos campos da ficha</h3><p class="empty-copy">O nome da nova ficha será o título do experimento. Ajuste os demais campos; campos não mapeados não serão alterados.</p>'+values.map((v,i)=>{const low=(v.label+" "+v.key).toLocaleLowerCase("pt-BR");const guess=low.includes("apar")?"appearance":low.includes("personal")?"personality":low.includes("passado")||low.includes("história")?"backstory":low.includes("medo")?"fears":low.includes("objetivo")||low.includes("motiva")||low.includes("desejo")?"goals":low.includes("papel")||low.includes("função")?"role":low.includes("idade")?"age":low.includes("obra")||low.includes("projeto")?"project":low.includes("descri")?"summary":"";return '<div class="lab-field"><label for="labTransferMap'+i+'">'+escapeHtml(v.label)+' — '+escapeHtml(v.value.slice(0,100))+'</label><select id="labTransferMap'+i+'" data-transfer-key="'+escapeHtml(v.key)+'">'+labTransferFieldOptions(guess)+'</select></div>';}).join("");
+          const chosen=characters.find(c=>c.id===target.value);document.getElementById("labTransferPreview").textContent=(chosen?"Ficha a atualizar: "+chosen.name:"Nova ficha: "+(exp.title||"Sem título"))+"\n\n"+values.map(v=>v.label+": "+v.value).join("\n");document.getElementById("labTransferConfirm").textContent=chosen?"Confirmar atualização da ficha":"Criar ficha com os campos selecionados";
+        }else{
+          map.innerHTML='<p class="empty-copy">Será criado um novo registro na Biblioteca Criativa. As respostas serão reunidas no corpo do registro para não perder conteúdo.</p>';document.getElementById("labTransferPreview").textContent="Título: "+(exp.title||"Experimento")+"\nTipo: Explicação ou conceito\nCategoria: "+(exp.category||"Experimento")+"\n\n"+labTransferFullText(exp);document.getElementById("labTransferConfirm").textContent="Criar registro na Biblioteca";
+        }
+      }
+      function labTransferOpen(){if(!labViewingId)return;const exp=labExperiments.find(x=>x.id===labViewingId);if(!exp){showNotice("O experimento não está mais disponível.");return;}labTransferExperimentId=exp.id;document.getElementById("labTransferDestination").value="characters";document.getElementById("labTransferMode").value="adapt";document.getElementById("labTransferTarget").value="new";labTransferRenderMapping();document.getElementById("labTransferBackdrop").hidden=false;}
+      function labTransferClose(){document.getElementById("labTransferBackdrop").hidden=true;labTransferExperimentId=null;}
+      function labTransferConfirm(){const exp=labExperiments.find(x=>x.id===labTransferExperimentId);if(!exp){showNotice("O experimento original não está disponível; nada foi transferido.");return;}const dest=document.getElementById("labTransferDestination").value,mode=document.getElementById("labTransferMode").value,now=Date.now();if(mode==="complete"||dest==="acervo"){
+          if(acvRecords.some(r=>r.sourceArea==="lab"&&r.sourceId===exp.id&&r.storageMode==="copy")){if(!confirm("Já existe uma cópia independente deste experimento no acervo. Deseja guardar outra cópia?"))return;}
+          const snapshot=JSON.parse(JSON.stringify(exp));snapshot.bodyText=labTransferFullText(exp);const r={id:acvId(),kind:"experiment",storageMode:"copy",sourceArea:"lab",sourceId:exp.id,sourceTitle:exp.title,title:exp.title||"Experimento",snapshot,content:"",collections:[],notes:[],favorite:false,createdAt:now,updatedAt:now};if(acvPersistRecords([...acvRecords,r])){labTransferClose();showNotice("Cópia completa guardada no Meu acervo. O experimento original foi preservado.");}
+          return;
+        }
+        if(dest==="characters"){
+          const targetId=document.getElementById("labTransferTarget").value,chosen=characters.find(c=>c.id===targetId),data=chosen?{...chosen}: {id:makeCharacterId(),name:(exp.title||"Personagem sem nome").slice(0,180),createdAt:now,favorite:false,archived:false};if(!chosen){data.summary="";characterFields.slice(1).forEach(k=>data[k]="");}
+          const maps=[...document.querySelectorAll("#labTransferMapping [data-transfer-key]")];maps.forEach(sel=>{const field=sel.value;if(!field)return;const v=labTransferValues(exp).find(x=>x.key===sel.dataset.transferKey);if(v)data[field]=(data[field]?data[field]+"\n\n":"")+v.value;});data.updatedAt=now;
+          if(!chosen&&!data.name.trim()){showNotice("A ficha precisa de um nome.");return;}const next=chosen?characters.map(c=>c.id===chosen.id?data:c):[...characters,data];if(!confirm((chosen?"Atualizar a ficha de "+chosen.name:"Criar a ficha "+data.name)+" com os campos mapeados? O experimento original não será alterado."))return;if(persistCharacters(next)){labTransferClose();renderCharacters();showNotice(chosen?"Ficha atualizada com os campos confirmados.":"Nova ficha criada com o conteúdo mapeado.");}return;
+        }
+        if(dest==="library"){
+          const body=labTransferFullText(exp);const title=(exp.title||"Experimento").slice(0,500);if(records.some(r=>r.title.toLocaleLowerCase("pt-BR")===title.toLocaleLowerCase("pt-BR"))&&!confirm("Já existe um registro com este título na Biblioteca Criativa. Criar outro mesmo assim?"))return;const record={id:makeId(),title,type:"Explicação ou conceito",category:exp.category||"Experimento",nature:"personal",parentId:"",body,examples:[],source:"Experimento do Laboratório: "+exp.id,notes:"Transferido com confirmação; original preservado no Laboratório.",status:"rascunho",archived:false,favorite:false,createdAt:now,updatedAt:now};if(persistRecords([...records,record])){renderRecords();renderHomeRecords();labTransferClose();showNotice("Registro criado na Biblioteca Criativa; o experimento original foi preservado.");}
+        }
+      }
+      document.getElementById("labTransferDestination").addEventListener("change",()=>{if(document.getElementById("labTransferDestination").value==="acervo")document.getElementById("labTransferMode").value="complete";else if(document.getElementById("labTransferMode").value==="complete")document.getElementById("labTransferMode").value="adapt";labTransferRenderMapping();});document.getElementById("labTransferMode").addEventListener("change",()=>{if(document.getElementById("labTransferMode").value==="complete")document.getElementById("labTransferDestination").value="acervo";labTransferRenderMapping();});document.getElementById("labTransferTarget").addEventListener("change",labTransferRenderMapping);document.getElementById("labTransferClose").addEventListener("click",labTransferClose);document.getElementById("labTransferCancel").addEventListener("click",labTransferClose);document.getElementById("labTransferConfirm").addEventListener("click",labTransferConfirm);document.getElementById("labTransferBackdrop").addEventListener("click",e=>{if(e.target.id==="labTransferBackdrop")labTransferClose();});
+
+      document.getElementById("saveLabToAcervo").addEventListener("click",labTransferOpen);document.getElementById("labChooseTransferDestination").addEventListener("click",labTransferOpen);document.getElementById("labViewBack").addEventListener("click",openLaboratory);document.getElementById("labViewBackBottom").addEventListener("click",openLaboratory);document.getElementById("labViewEdit").addEventListener("click",()=>{if(!labViewingId)return;const current=labExperiments.find(x=>x.id===labViewingId);if(current?.definition?.form)openLabDynamicForm(current.id);else openLabEditor(labViewingId);});document.getElementById("labDeleteExperiment").addEventListener("click",deleteLabExperiment);document.getElementById("labDuplicateExperiment").addEventListener("click",duplicateLabExperiment);
       document.getElementById("labCreateVersion").addEventListener("click",()=>{if(!labEditingId){showNotice("Salve o experimento antes de criar uma versão.");return;}document.getElementById("labVersionCreatePanel").hidden=false;document.getElementById("labVersionName").focus();});document.getElementById("labCancelVersion").addEventListener("click",()=>{document.getElementById("labVersionCreatePanel").hidden=true;document.getElementById("labVersionName").value="";document.getElementById("labVersionNote").value="";});document.getElementById("labConfirmVersion").addEventListener("click",createLabVersion);document.getElementById("labCloseVersionDetail").addEventListener("click",()=>{document.getElementById("labVersionDetail").hidden=true;labViewingVersionId=null;});document.getElementById("labRestoreVersion").addEventListener("click",restoreLabVersion);
       labForm.addEventListener("input",()=>{document.getElementById("labSaveState").textContent="Alterações não salvas";});
 
@@ -2012,5 +2065,7 @@
     })();
 
   </script>
+
+
 </body>
 </html>
